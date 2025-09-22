@@ -1,0 +1,73 @@
+version: '3'
+services:
+  db:
+    container_name: db
+    image: postgres:11.4
+    ports:
+      - 6543:5432
+    environment:
+      - POSTGRES_USER=delivery # Задайте имя пользователя, которое вам нужно
+      - POSTGRES_PASSWORD=delivery # Задайте пароль, который вам нужно
+      - POSTGRES_DB=delivery # Задайте имя базы данных, если требуется
+  init:
+    container_name: init
+    build:
+      context: .
+      dockerfile: .docker/init.Dockerfile
+    restart: on-failure
+    depends_on:
+      - db
+
+  migrate:
+    container_name: migrate
+    build:
+      context: .
+      dockerfile: .docker/migrate.Dockerfile
+    restart: on-failure
+    environment:
+      - POSTGRES_USER=delivery
+      - POSTGRES_PASSWORD=delivery
+      - POSTGRES_PORT=5432
+      - POSTGRES_HOST=db
+      - POSTGRES_DATABASE=delivery
+    depends_on:
+      - db
+
+
+  uzum_delivery:
+    container_name: uzum_delivery
+    build:
+      context: .
+    ports:
+      - 8080:8080
+    #    depends_on:
+    #      - zookeeper
+    environment:
+      - APP_PORT=:8080
+      - POSTGRES_USER=delivery
+      - POSTGRES_PASSWORD=delivery
+      - POSTGRES_DATABASE=delivery
+      - POSTGRES_PORT=5432
+      - POSTGRES_HOST=db
+
+#  zookeeper:
+#    image: confluentinc/cp-zookeeper:latest
+#    environment:
+#      ZOOKEEPER_CLIENT_PORT: 2181
+#      ZOOKEEPER_TICK_TIME: 2000
+#    ports:
+#      - 22181:2181
+#
+#  kafka:
+#    image: confluentinc/cp-kafka:latest
+#    depends_on:
+#      - zookeeper
+#    ports:
+#      - 29092:29092
+#    environment:
+#      KAFKA_BROKER_ID: 1
+#      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+#      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+#      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+#      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+#      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1

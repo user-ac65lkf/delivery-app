@@ -1,0 +1,147 @@
+syntax = "proto3";
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/Shemistan/uzum_shop/pkg/shopV1";
+
+service Shop {
+  rpc GetProduct(GetProduct.Request) returns (GetProduct.Response) {
+    option (google.api.http) = {
+      get: "/shop/v1/product/{product_id}"
+    };
+  }
+
+  rpc GetAllProduct(google.protobuf.Empty) returns (GetAllProducts.Response) {
+    option (google.api.http) = {
+      get: "/shop/v1/products"
+    };
+  }
+
+  rpc AddProductToBasket(AddProductToBasket.Request ) returns (google.protobuf.Empty){
+    option (google.api.http) = {
+      post: "/shop/v1/basket"
+      body: "*"
+    };
+  }
+
+  rpc UpdateBasket(UpdateBasket.Request ) returns (google.protobuf.Empty){
+    option (google.api.http) = {
+      put: "/shop/v1/basket"
+      body: "*"
+    };
+  }
+
+  rpc DeleteBasket(DeleteBasket.Request ) returns (google.protobuf.Empty){
+    option (google.api.http) = {
+      delete: "/shop/v1/basket/{product_id}"
+    };
+  }
+
+  rpc GetBasket(google.protobuf.Empty) returns (GetBasket.Response){
+    option (google.api.http) = {
+      get: "/shop/v1/basket"
+    };
+  }
+
+  rpc CreateOrder(Order.Request) returns (Order.Response){
+    option (google.api.http) = {
+      post: "/shop/v1/order"
+      body: "*"
+    };
+  }
+
+  rpc CancelOrder(CancelOrder.Request) returns (google.protobuf.Empty){
+    option (google.api.http) = {
+      delete: "/shop/v1/order/{order_id}"
+    };
+  }
+
+  rpc Healthz(google.protobuf.Empty) returns (google.protobuf.Empty){
+    option (google.api.http) = {
+      get: "/shop/v1/healthz"
+    };
+  }
+}
+
+message GetProduct {
+  message Request{
+    uint32 product_id = 1;
+  }
+
+  message Response {
+    Product product = 1;
+  }
+}
+
+message Product {
+    uint32 id =1;
+    string name = 2;
+    string description = 3;
+    double price = 4;
+    uint32 count = 5;
+}
+
+message ProductShort {
+  string name = 2;
+  double price = 4;
+}
+
+message GetAllProducts {
+  message Response{
+    repeated ProductShort allProducts = 1;
+  }
+}
+
+message AddProductToBasket {
+  message Request{
+    uint32 product_id = 1;
+    uint32 count = 2;
+  }
+}
+
+message UpdateBasket {
+  message Request{
+    uint32 product_id = 1;
+    uint32 count = 2;
+  }
+}
+
+message DeleteBasket {
+  message Request{
+    uint32 product_id = 1;
+  }
+}
+
+message BasketItem {
+  uint32 id = 1;
+  uint32 user_id = 2;
+  uint32 product_id = 3;
+  uint32 count = 4;
+
+}
+
+message GetBasket {
+  message Response{
+    repeated BasketItem allBasket = 1;
+  }
+}
+
+message Order {
+  message Request {
+    string address = 1;
+    double drop_x = 2;
+    double drop_y = 3;
+    double take_x = 4;
+    double take_y = 5;
+  }
+  message Response {
+    uint32 order_id = 1;
+  }
+}
+
+message CancelOrder {
+  message Request{
+    uint32 order_id = 1;
+  }
+}

@@ -1,0 +1,154 @@
+version: '3'
+services:
+  db:
+    container_name: db
+    healthcheck:
+      test: pg_isready -U postgres -d postgres
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    image: postgres:15.1
+    ports:
+      - "6543:5432"
+    environment:
+      - POSTGRES_USER=postgres # Задайте имя пользователя, которое вам нужно
+      - POSTGRES_PASSWORD=postgres # Задайте пароль, который вам нужно
+      - POSTGRES_DB=service # Задайте имя базы данных, если требуется
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - 22181:2181
+#    depends_on:
+#      db:
+#        condition: service_healthy
+#    healthcheck:
+#      test: [ "CMD", "nc", "-vz", "localhost", "2181" ]
+#      interval: 10s
+#      timeout: 10s
+#      retries: 3
+
+  kafka:
+    container_name: kafka
+    healthcheck:
+      test: [ "CMD", "nc", "-vz", "localhost", "9092" ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    image: confluentinc/cp-kafka:latest
+#    depends_on:
+#      zookeeper:
+#        condition: service_healthy
+    ports:
+      - 29092:29092
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  auth:
+    container_name: auth
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/auth_v1/healthz" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      kafka:
+        condition: service_healthy
+    build:
+      context: .
+      dockerfile: .docker/auth.Dockerfile
+    ports:
+      - "8080:8080"
+    restart: on-failure
+
+  admin:
+    container_name: admin
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8086/admin/v1/healthz" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      auth:
+        condition: service_healthy
+    build:
+      context: .
+      dockerfile: .docker/admin.Dockerfile
+    ports:
+      - "8086:8086"
+    restart: on-failure
+
+  delivery:
+    container_name: delivery
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8088/deliver/v1/healthz" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      admin:
+        condition: service_healthy
+    build:
+      context: .
+      dockerfile: .docker/delivery.Dockerfile
+    ports:
+      - "8088:8088"
+    restart: on-failure
+
+  shop:
+    container_name: shop
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8084/shop/v1/healthz" ]
+      interval: 12s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      delivery:
+        condition: service_healthy
+    build:
+      context: .
+      dockerfile: .docker/shop.Dockerfile
+    ports:
+      - "8084:8084"
+    restart: on-failure
+
+  push:
+    container_name: push
+    #    healthcheck:
+    #      test: [ "CMD", "curl", "-f", "http://localhost:8084/shop/v1/healthz" ]
+    #      interval: 10s
+    #      timeout: 5s
+    #      retries: 3
+    depends_on:
+      shop:
+        condition: service_healthy
+    build:
+      context: .
+      dockerfile: .docker/push.Dockerfile
+    restart: on-failure
+
+  init-kafka:
+    container_name: init-kafka
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: [ '/bin/sh', '-c' ]
+    command: |
+      "
+      # blocks until kafka is reachable
+      kafka-topics --bootstrap-server kafka:9092 --list
+      echo -e 'Creating kafka topics'
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic mytopic --replication-factor 1 --partitions 3
+      echo -e 'Successfully created the following topics:'
+      kafka-topics --bootstrap-server kafka:9092 --list
+      "
+
